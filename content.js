@@ -329,7 +329,7 @@ function createUserEvent(event) {
   const userEvent = {
     user: username,
     timestamp: timestamp,
-    source: source, // 2 for MouseInteraction, 5 for Input
+    source: source == 2 ? "click" : "Input", // 2 for MouseInteraction, 5 for Input
     sessionId: sessionId,
     eventSequence: eventSequence,
     sessionDuration: timestamp - sessionStartTime,

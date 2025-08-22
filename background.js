@@ -253,39 +253,6 @@ function isTargetUrl(url) {
 chrome.webRequest.onBeforeRequest.addListener(
   function(details) {
     try {
-
-      if (msg?.type === "GET_SESSION_ID") {
-        (async () => {
-          try {
-            const sid = await ensureSharedSessionId(!!sender?.incognito);
-            sendResponse({ ok: true, sessionId: sid });
-          } catch (e) {
-            sendResponse({ ok: false, error: String(e) });
-          }
-        })();
-        return true; // giữ cổng mở cho sendResponse async
-      }
-
-      if (msg?.type === "RESET_SESSION_ID") {
-        (async () => {
-          try {
-            const sid = await resetSharedSessionId(!!sender?.incognito);
-            // (tuỳ chọn) broadcast cho tất cả tab biết ID mới
-            try {
-              chrome.tabs.query({}, (tabs) => {
-                for (const t of tabs) {
-                  chrome.tabs.sendMessage?.(t.id, { type: "SESSION_ID_UPDATED", sessionId: sid }, () => {});
-                }
-              });
-            } catch {}
-            sendResponse({ ok: true, sessionId: sid });
-          } catch (e) {
-            sendResponse({ ok: false, error: String(e) });
-          }
-        })();
-        return true;
-      }
-
       // Skip chrome-extension and chrome internal requests
       if (details.url.startsWith('chrome-extension://') || 
           details.url.startsWith('chrome://') ||
@@ -464,6 +431,38 @@ chrome.webRequest.onErrorOccurred.addListener(
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   try {
     console.log("Message received in background:", msg.type);
+    if (msg?.type === "GET_SESSION_ID") {
+        (async () => {
+          try {
+            const sid = await ensureSharedSessionId(!!sender?.incognito);
+            sendResponse({ ok: true, sessionId: sid });
+          } catch (e) {
+            sendResponse({ ok: false, error: String(e) });
+          }
+        })();
+        return true; // giữ cổng mở cho sendResponse async
+      }
+
+      if (msg?.type === "RESET_SESSION_ID") {
+        (async () => {
+          try {
+            const sid = await resetSharedSessionId(!!sender?.incognito);
+            // (tuỳ chọn) broadcast cho tất cả tab biết ID mới
+            try {
+              chrome.tabs.query({}, (tabs) => {
+                for (const t of tabs) {
+                  chrome.tabs.sendMessage?.(t.id, { type: "SESSION_ID_UPDATED", sessionId: sid }, () => {});
+                }
+              });
+            } catch {}
+            sendResponse({ ok: true, sessionId: sid });
+          } catch (e) {
+            sendResponse({ ok: false, error: String(e) });
+          }
+        })();
+        return true;
+      }
+
     
     if (msg && msg.type === "USER_INFO_UPDATE") {
       // Update user info

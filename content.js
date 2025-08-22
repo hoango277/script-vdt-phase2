@@ -291,17 +291,16 @@ setInterval(checkUrlChange, 2000);
 
 function getOrCreateSessionId() {
   return new Promise((resolve) => {
+    const KEY = "sessionId";
     try {
-      chrome.storage.local.get(["sessionId"], (res) => {
-        if (res && res.sessionId) {
-          resolve(res.sessionId);
-        } else {
-          const id = uuid();
-          chrome.storage.local.set({ sessionId: id }, () => resolve(id));
-        }
-      });
+      let id = sessionStorage.getItem(KEY);
+      if (!id) {
+        id = uuid();
+        sessionStorage.setItem(KEY, id);
+      }
+      resolve(id);
     } catch {
-      resolve(uuid());
+      resolve(uuid()); // fallback nếu sessionStorage bị chặn
     }
   });
 }
@@ -495,12 +494,14 @@ window.addEventListener("beforeunload", () => flush());
 (async function main() {
   try {
     
-    sessionId = await getOrCreateSessionId();
-    pageId = uuid();
+    
+
     
     await new Promise(resolve => setTimeout(resolve, 3000));
     
     username = await waitForUsername();
+    sessionId = await getOrCreateSessionId();
+    pageId = uuid();
     sendUserInfoToBackground();
     
     startTracking();

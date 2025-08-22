@@ -311,7 +311,14 @@ chrome.webRequest.onCompleted.addListener(
         requestEvent.timing.duration = details.timeStamp - requestEvent.timing.requestTime;
         
         // Add to buffer
-        requestBuffer.push(requestEvent);
+        if(requestEvent && requestEvent.user.username != "unknown")
+        {
+          requestBuffer.push(requestEvent);
+        }
+        else{
+          console.log("khoong co username");
+        }
+
         
         console.log("Request completed:", {
           user: requestEvent.user.username,

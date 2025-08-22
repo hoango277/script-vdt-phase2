@@ -291,16 +291,17 @@ setInterval(checkUrlChange, 2000);
 
 function getOrCreateSessionId() {
   return new Promise((resolve) => {
-    const KEY = "sessionId";
     try {
-      let id = sessionStorage.getItem(KEY);
-      if (!id) {
-        id = uuid();
-        sessionStorage.setItem(KEY, id);
-      }
-      resolve(id);
+      chrome.runtime.sendMessage({ type: "GET_SESSION_ID" }, (resp) => {
+        if (!chrome.runtime.lastError && resp?.ok && resp?.sessionId) {
+          resolve(resp.sessionId); // <-- mọi tab sẽ nhận cùng 1 ID
+        } else {
+          // fallback an toàn (ít khi cần tới)
+          resolve(uuid());
+        }
+      });
     } catch {
-      resolve(uuid()); // fallback nếu sessionStorage bị chặn
+      resolve(uuid());
     }
   });
 }
@@ -361,6 +362,7 @@ function createUserEvent(event) {
   
   return userEvent;
 }
+
 
 function flush() {
   if (!buffer.length) return;

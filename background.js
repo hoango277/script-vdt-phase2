@@ -1,4 +1,28 @@
 console.log("Log-OCS - Background loaded");
+const SID_KEY_NORMAL = 'sessionId';
+const SID_KEY_INCOG  = 'sessionId_incog';
+
+function uuid() {
+  return (crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+async function ensureSharedSessionId(isIncognito) {
+  const key = isIncognito ? SID_KEY_INCOG : SID_KEY_NORMAL;
+  const got = await chrome.storage.session.get([key]).catch(() => ({}));
+  if (got && got[key]) return got[key];
+  const id = uuid();
+  await chrome.storage.session.set({ [key]: id });
+  return id;
+}
+
+async function resetSharedSessionId(isIncognito) {
+  const key = isIncognito ? SID_KEY_INCOG : SID_KEY_NORMAL;
+  const id = uuid();
+  await chrome.storage.session.set({ [key]: id });
+  return id;
+}
 
 // ==== Backend ingest config & helpers ====
 const INGEST_CONFIG = {
@@ -229,6 +253,39 @@ function isTargetUrl(url) {
 chrome.webRequest.onBeforeRequest.addListener(
   function(details) {
     try {
+
+      if (msg?.type === "GET_SESSION_ID") {
+        (async () => {
+          try {
+            const sid = await ensureSharedSessionId(!!sender?.incognito);
+            sendResponse({ ok: true, sessionId: sid });
+          } catch (e) {
+            sendResponse({ ok: false, error: String(e) });
+          }
+        })();
+        return true; // giữ cổng mở cho sendResponse async
+      }
+
+      if (msg?.type === "RESET_SESSION_ID") {
+        (async () => {
+          try {
+            const sid = await resetSharedSessionId(!!sender?.incognito);
+            // (tuỳ chọn) broadcast cho tất cả tab biết ID mới
+            try {
+              chrome.tabs.query({}, (tabs) => {
+                for (const t of tabs) {
+                  chrome.tabs.sendMessage?.(t.id, { type: "SESSION_ID_UPDATED", sessionId: sid }, () => {});
+                }
+              });
+            } catch {}
+            sendResponse({ ok: true, sessionId: sid });
+          } catch (e) {
+            sendResponse({ ok: false, error: String(e) });
+          }
+        })();
+        return true;
+      }
+
       // Skip chrome-extension and chrome internal requests
       if (details.url.startsWith('chrome-extension://') || 
           details.url.startsWith('chrome://') ||
@@ -315,20 +372,7 @@ chrome.webRequest.onCompleted.addListener(
         {
           requestBuffer.push(requestEvent);
         }
-        else{
-          console.log("khoong co username");
-        }
-
         
-        console.log("Request completed:", {
-          user: requestEvent.user.username,
-          method: requestEvent.request.method,
-          url: requestEvent.request.url,
-          status: details.statusCode,
-          duration: Math.round(requestEvent.timing.duration) + 'ms'
-        });
-        
-        // Remove from pending
         pendingRequests.delete(details.requestId);
         
         // Flush if buffer is full

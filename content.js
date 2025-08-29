@@ -235,7 +235,7 @@ function getUsernameFromDOM() {
 }
 
 // Thêm function để gửi user info đến background
-function sendUserInfoToBackground() {
+async function sendUserInfoToBackground() {
   if (username && sessionId) {
     const userInfo = {
       type: "USER_INFO_UPDATE",
@@ -247,6 +247,28 @@ function sendUserInfoToBackground() {
         timestamp: Date.now()
       }
     };
+    // Gửi bắt đầu session đến backend-2
+    try{
+      let res = await fetch("http://localhost:8001/v1/sessions/start", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: username,
+        sessionId: sessionId,
+        startedAt: Date.now()
+      }),
+      keepalive: true,
+    });
+      if(res)
+        console.log(res);
+    }
+    catch(e)
+    {
+      console.log(e);
+    }
+     
+      
+
     
     try {
       chrome.runtime.sendMessage(userInfo, (response) => {

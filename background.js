@@ -1,6 +1,62 @@
 console.log("Log-OCS - Background loaded");
 const SID_KEY_NORMAL = 'sessionId';
 const SID_KEY_INCOG  = 'sessionId_incog';
+let lastKnownUser = { username: null, sessionId: null };
+
+
+// Đếm số tab để có thể bắn kết thúc phiên
+const activeTabIds = new Set(); // lưu tabId đang chạy content script của extension
+
+async function maybeAllTabsClosed() {
+  if (activeTabIds.size === 0) {
+    console.log('[presence] all extension tabs closed');
+    try{
+      let res = await fetch("http://localhost:8001/v1/sessions/end", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: lastKnownUser.username,
+        sessionId: lastKnownUser.sessionId,
+        startedAt: Date.now()
+      }),
+      keepalive: true,
+    });
+      if(res)
+        console.log(res);
+    }
+    catch(e)
+    {
+      console.log(e);
+    }
+  }
+}
+
+// Content script sẽ connect bằng tên này
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'logocs-presence') return;
+  const tabId = port.sender?.tab?.id;
+  if (tabId == null) return;
+
+  // đăng ký tabId
+  activeTabIds.add(tabId);
+  console.log('[presence] port connected:', tabId, 'active:', activeTabIds.size);
+
+  // khi tab/iframe đóng, hoặc chuyển trang làm content script unload -> port disconnect
+  port.onDisconnect.addListener(() => {
+    activeTabIds.delete(tabId);
+    console.log('[presence] port disconnected:', tabId, 'active:', activeTabIds.size);
+    maybeAllTabsClosed();
+  });
+});
+
+// Nếu tab bị đóng, dọn dẹp luôn (phòng khi onDisconnect không kịp bắn)
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (activeTabIds.delete(tabId)) {
+    console.log('[presence] tab closed:', tabId, 'active:', activeTabIds.size);
+    maybeAllTabsClosed();
+  }
+});
+// ======================================================================
 
 function uuid() {
   return (crypto && crypto.randomUUID)
@@ -486,6 +542,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         domain: msg.data.domain,
         lastUpdated: msg.data.timestamp
       };
+      lastKnownUser.username = currentUserInfo.username;
+      lastKnownUser.sessionId = currentUserInfo.sessionId;
       
       console.log("User info updated:", {
         tabId: tabId,
